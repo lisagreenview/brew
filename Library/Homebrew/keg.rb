@@ -446,7 +446,7 @@ class Keg
            /^gdk-pixbuf/,
            "ghc",
            /^gio/,
-           "lua",
+           /^lua/,
            /^mecab/,
            /^node/,
            /^ocaml/,
@@ -482,6 +482,10 @@ class Keg
   else
     ObserverPathnameExtension.n
   end
+
+  def prepare_debug_symbols; end
+
+  def consistent_reproducible_symlink_permissions!; end
 
   def remove_oldname_opt_record
     return unless oldname_opt_record
@@ -528,6 +532,8 @@ class Keg
   def binary_executable_or_library_files
     elf_files
   end
+
+  def codesign_patched_binary(file); end
 
   private
 

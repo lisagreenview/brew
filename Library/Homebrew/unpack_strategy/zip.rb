@@ -27,10 +27,17 @@ module UnpackStrategy
               .returns(SystemCommand::Result)
     }
     def extract_to_dir(unpack_dir, basename:, verbose:)
+      unzip = begin
+        Formula["unzip"]
+      rescue FormulaUnavailableError
+        nil
+      end
+
       with_env(TZ: "UTC") do
         quiet_flags = verbose ? [] : ["-qq"]
         result = system_command! "unzip",
                                  args:         [*quiet_flags, "-o", path, "-d", unpack_dir],
+                                 env:          { "PATH" => PATH.new(unzip&.opt_bin, ENV.fetch("PATH")) },
                                  verbose:      verbose,
                                  print_stderr: false
 
@@ -42,4 +49,4 @@ module UnpackStrategy
   end
 end
 
-require "extend/os/mac/unpack_strategy/zip" if OS.mac?
+require "extend/os/unpack_strategy/zip"

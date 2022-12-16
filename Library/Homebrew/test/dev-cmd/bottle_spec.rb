@@ -21,6 +21,7 @@ describe "brew bottle" do
         .to output(/testball--0\.1.*\.bottle\.tar\.gz/).to_stdout
         .and not_to_output.to_stderr
         .and be_a_success
+      expect(HOMEBREW_CELLAR/"testball-bottle.tar").not_to exist
     ensure
       FileUtils.rm_f Dir.glob("testball--0.1*.bottle.tar.gz")
     end
@@ -79,7 +80,7 @@ describe "brew bottle" do
 
     it "adds the bottle block to a formula that has none" do
       core_tap.path.cd do
-        system "git", "init"
+        system "git", "-c", "init.defaultBranch=master", "init"
         setup_test_formula "testball"
         system "git", "add", "--all"
         system "git", "commit", "-m", "testball 0.1"
@@ -139,7 +140,7 @@ describe "brew bottle" do
 
     it "replaces the bottle block in a formula that already has a bottle block" do
       core_tap.path.cd do
-        system "git", "init"
+        system "git", "-c", "init.defaultBranch=master", "init"
         setup_test_formula "testball", bottle_block: <<~EOS
 
           bottle do
@@ -206,7 +207,7 @@ describe "brew bottle" do
 
     it "updates the bottle block in a formula that already has a bottle block when using --keep-old" do
       core_tap.path.cd do
-        system "git", "init"
+        system "git", "-c", "init.defaultBranch=master", "init"
         setup_test_formula "testball", bottle_block: <<~EOS
 
           bottle do

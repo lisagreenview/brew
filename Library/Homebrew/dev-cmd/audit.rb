@@ -39,12 +39,21 @@ module Homebrew
              description: "Run additional, slower style checks that navigate the Git repository."
       switch "--online",
              description: "Run additional, slower style checks that require a network connection."
+      switch "--installed",
+             description: "Only check formulae and casks that are currently installed."
+      switch "--eval-all",
+             description: "Evaluate all available formulae and casks, whether installed or not, to audit them. " \
+                          "Implied if HOMEBREW_EVAL_ALL is set."
+      switch "--all",
+             hidden: true
       switch "--new", "--new-formula", "--new-cask",
-             description: "Run various additional style checks to determine if a new formula or cask is eligible "\
-                          "for Homebrew. This should be used when creating new formula and implies "\
+             description: "Run various additional style checks to determine if a new formula or cask is eligible " \
+                          "for Homebrew. This should be used when creating new formula and implies " \
                           "`--strict` and `--online`."
       switch "--[no-]appcast",
              description: "Audit the appcast."
+      switch "--[no-]signing",
+             description: "Audit for signed apps, which are required on ARM"
       switch "--token-conflicts",
              description: "Audit for token conflicts."
       flag   "--tap=",
@@ -54,27 +63,27 @@ module Homebrew
       switch "--display-cop-names",
              description: "Include the RuboCop cop name for each violation in the output."
       switch "--display-filename",
-             description: "Prefix every line of output with the file or formula name being audited, to "\
+             description: "Prefix every line of output with the file or formula name being audited, to " \
                           "make output easy to grep."
       switch "--display-failures-only",
              description: "Only display casks that fail the audit. This is the default for formulae."
       switch "--skip-style",
-             description: "Skip running non-RuboCop style checks. Useful if you plan on running "\
+             description: "Skip running non-RuboCop style checks. Useful if you plan on running " \
                           "`brew style` separately. Enabled by default unless a formula is specified by name."
       switch "-D", "--audit-debug",
              description: "Enable debugging and profiling of audit methods."
       comma_array "--only",
-                  description: "Specify a comma-separated <method> list to only run the methods named "\
+                  description: "Specify a comma-separated <method> list to only run the methods named " \
                                "`audit_`<method>."
       comma_array "--except",
-                  description: "Specify a comma-separated <method> list to skip running the methods named "\
+                  description: "Specify a comma-separated <method> list to skip running the methods named " \
                                "`audit_`<method>."
       comma_array "--only-cops",
-                  description: "Specify a comma-separated <cops> list to check for violations of only the listed "\
+                  description: "Specify a comma-separated <cops> list to check for violations of only the listed " \
                                "RuboCop cops."
       comma_array "--except-cops",
-                  description: "Specify a comma-separated <cops> list to skip checking for violations of the listed "\
-                               "RuboCop cops."
+                  description: "Specify a comma-separated <cops> list to skip checking for violations of the " \
+                               "listed RuboCop cops."
       switch "--formula", "--formulae",
              description: "Treat all named arguments as formulae."
       switch "--cask", "--casks",
@@ -87,6 +96,7 @@ module Homebrew
       conflicts "--display-cop-names", "--only-cops"
       conflicts "--display-cop-names", "--except-cops"
       conflicts "--formula", "--cask"
+      conflicts "--installed", "--all"
 
       named_args [:formula, :cask]
     end
@@ -113,19 +123,32 @@ module Homebrew
     ENV.setup_build_environment
 
     audit_formulae, audit_casks = if args.tap
-      Tap.fetch(args.tap).yield_self do |tap|
+      Tap.fetch(args.tap).then do |tap|
         [
           tap.formula_names.map { |name| Formula[name] },
           tap.cask_files.map { |path| Cask::CaskLoader.load(path) },
         ]
       end
-    elsif args.no_named?
+    elsif args.installed?
       no_named_args = true
-      [Formula, Cask::Cask.to_a]
+      [Formula.installed, Cask::Caskroom.casks]
+    elsif args.no_named?
+      if !args.eval_all? && !Homebrew::EnvConfig.eval_all?
+        odeprecated "brew audit",
+                    "brew audit --eval-all or HOMEBREW_EVAL_ALL"
+      end
+      no_named_args = true
+      [Formula.all, Cask::Cask.all]
     else
       args.named.to_formulae_and_casks
           .partition { |formula_or_cask| formula_or_cask.is_a?(Formula) }
     end
+
+    if audit_formulae.empty? && audit_casks.empty?
+      ofail "No matching formulae or casks to audit!"
+      return
+    end
+
     style_files = args.named.to_paths unless skip_style
 
     only_cops = args.only_cops
@@ -161,12 +184,12 @@ module Homebrew
     end
 
     # Check style in a single batch run up front for performance
-    style_offenses = Style.check_style_json(style_files, style_options) if style_files
+    style_offenses = Style.check_style_json(style_files, **style_options) if style_files
     # load licenses
     spdx_license_data = SPDX.license_data
     spdx_exception_data = SPDX.exception_data
     new_formula_problem_lines = []
-    formula_results = audit_formulae.sort.map do |f|
+    formula_results = audit_formulae.sort.to_h do |f|
       only = only_cops ? ["style"] : args.only
       options = {
         new_formula:         new_formula,
@@ -177,7 +200,7 @@ module Homebrew
         except:              args.except,
         spdx_license_data:   spdx_license_data,
         spdx_exception_data: spdx_exception_data,
-        style_offenses:      style_offenses ? style_offenses.for_path(f.path) : nil,
+        style_offenses:      style_offenses&.for_path(f.path),
         display_cop_names:   args.display_cop_names?,
       }.compact
 
@@ -198,7 +221,7 @@ module Homebrew
       end
 
       [f.path, { errors: fa.problems + fa.new_formula_problems, warnings: [] }]
-    end.to_h
+    end
 
     cask_results = if audit_casks.empty?
       {}
@@ -213,6 +236,8 @@ module Homebrew
         download:              nil,
         # No need for `|| nil` for `--[no-]appcast` because boolean switches are already `nil` if not passed
         appcast:               args.appcast?,
+        # No need for `|| nil` for `--[no-]signing` because boolean switches are already `nil` if not passed
+        signing:               args.signing?,
         online:                args.online? || nil,
         strict:                args.strict? || nil,
         new_cask:              args.new_cask? || nil,

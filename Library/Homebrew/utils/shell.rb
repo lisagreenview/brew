@@ -49,7 +49,7 @@ module Utils
     def profile
       case preferred
       when :bash
-        bash_profile = "#{ENV["HOME"]}/.bash_profile"
+        bash_profile = "#{Dir.home}/.bash_profile"
         return bash_profile if File.exist? bash_profile
       when :zsh
         return "#{ENV["ZDOTDIR"]}/.zshrc" if ENV["ZDOTDIR"].present?
@@ -78,7 +78,7 @@ module Utils
       when :csh, :tcsh
         "echo 'setenv PATH #{csh_quote(path)}:$PATH' >> #{profile}"
       when :fish
-        "echo 'fish_add_path #{sh_quote(path)}' >> #{profile}"
+        "fish_add_path #{sh_quote(path)}"
       end
     end
 

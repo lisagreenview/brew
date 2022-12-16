@@ -12,8 +12,6 @@ module PyPI
   PYTHONHOSTED_URL_PREFIX = "https://files.pythonhosted.org/packages/"
   private_constant :PYTHONHOSTED_URL_PREFIX
 
-  @pipgrip_installed = nil
-
   # PyPI Package
   #
   # @api private
@@ -59,7 +57,7 @@ module PyPI
       else
         "https://pypi.org/pypi/#{@name}/json"
       end
-      out, _, status = curl_output metadata_url, "--location"
+      out, _, status = curl_output metadata_url, "--location", "--fail"
 
       return unless status.success?
 
@@ -200,7 +198,7 @@ module PyPI
 
       input_packages.each do |existing_package|
         if existing_package.same_package?(extra_package) && existing_package.version != extra_package.version
-          odie "Conflicting versions specified for the `#{extra_package.name}` package: "\
+          odie "Conflicting versions specified for the `#{extra_package.name}` package: " \
                "#{existing_package.version}, #{extra_package.version}"
         end
       end
@@ -214,8 +212,7 @@ module PyPI
       end
     end
 
-    @pipgrip_installed ||= Formula["pipgrip"].any_version_installed?
-    odie '"pipgrip" must be installed (`brew install pipgrip`)' unless @pipgrip_installed
+    ensure_formula_installed!("pipgrip")
 
     ohai "Retrieving PyPI dependencies for \"#{input_packages.join(" ")}\"..." if !print_only && !silent
     command =
@@ -223,9 +220,9 @@ module PyPI
     pipgrip_output = Utils.popen_read(*command)
     unless $CHILD_STATUS.success?
       odie <<~EOS
-        Unable to determine dependencies for \"#{input_packages.join(" ")}\" because of a failure when running
+        Unable to determine dependencies for "#{input_packages.join(" ")}" because of a failure when running
         `#{command.join(" ")}`.
-        Please update the resources for \"#{formula.name}\" manually.
+        Please update the resources for "#{formula.name}" manually.
       EOS
     end
 
@@ -245,8 +242,8 @@ module PyPI
         odie "Unable to resolve some dependencies. Please update the resources for \"#{formula.name}\" manually."
       elsif url.blank? || checksum.blank?
         odie <<~EOS
-          Unable to find the URL and/or sha256 for the \"#{name}\" resource.
-          Please update the resources for \"#{formula.name}\" manually.
+          Unable to find the URL and/or sha256 for the "#{name}" resource.
+          Please update the resources for "#{formula.name}" manually.
         EOS
       end
 

@@ -18,6 +18,9 @@ module Debrew
 end
 
 class Formula
+  sig { returns(T::Boolean) }
+  def self.on_system_blocks_exist?; end
+
   sig { params(arg: T.untyped).returns(T.untyped) }
   def self.desc(arg = T.unsafe(nil)); end
 
@@ -63,7 +66,13 @@ class FormulaInstaller
   def force?; end
 
   sig { returns(T::Boolean) }
+  def overwrite?; end
+
+  sig { returns(T::Boolean) }
   def keep_tmp?; end
+
+  sig { returns(T::Boolean) }
+  def debug_symbols?; end
 
   sig { returns(T::Boolean) }
   def verbose?; end
@@ -120,17 +129,13 @@ module Cask
     def strict?; end
 
     sig { returns(T::Boolean) }
+    def signing?; end
+
+    sig { returns(T::Boolean) }
     def online?; end
 
     sig { returns(T::Boolean) }
     def token_conflicts?; end
-  end
-
-  class DSL
-    class Caveats < Base
-      sig { returns(T::Boolean) }
-      def discontinued?; end
-    end
   end
 
   class Installer
@@ -139,6 +144,9 @@ module Cask
 
     sig { returns(T::Boolean) }
     def force?; end
+
+    sig { returns(T::Boolean) }
+    def adopt?; end
 
     sig { returns(T::Boolean) }
     def skip_cask_deps?; end
@@ -156,6 +164,9 @@ module Cask
     def verbose?; end
 
     sig { returns(T::Boolean) }
+    def zap?; end
+
+    sig { returns(T::Boolean) }
     def installed_as_dependency?; end
 
     sig { returns(T::Boolean) }
@@ -163,5 +174,15 @@ module Cask
 
     sig { returns(T::Boolean) }
     def quiet?; end
+  end
+
+  class DSL
+    class Caveats < Base
+      sig { returns(T::Boolean) }
+      def discontinued?; end
+    end
+
+    sig { returns(T::Boolean) }
+    def on_system_blocks_exist?; end
   end
 end

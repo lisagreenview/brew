@@ -18,6 +18,8 @@ module Homebrew
       EOS
       switch "-n", "--dry-run",
              description: "Print what would be done rather than doing it."
+      switch "--remove-bottle-block",
+             description: "Remove the bottle block in addition to bumping the revision."
       switch "--write-only",
              description: "Make the expected file modifications without taking any Git actions."
       flag   "--message=",
@@ -34,7 +36,7 @@ module Homebrew
 
     # As this command is simplifying user-run commands then let's just use a
     # user path, too.
-    ENV["PATH"] = ENV["HOMEBREW_PATH"]
+    ENV["PATH"] = PATH.new(ORIGINAL_PATHS).to_s
 
     args.named.to_formulae.each do |formula|
       current_revision = formula.revision
@@ -60,6 +62,7 @@ module Homebrew
         else
           formula_ast.replace_stanza(:revision, new_revision)
         end
+        formula_ast.remove_stanza(:bottle) if args.remove_bottle_block?
         formula.path.atomic_write(formula_ast.process)
       end
 

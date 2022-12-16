@@ -96,10 +96,10 @@ describe Tap do
   end
 
   specify "::fetch" do
-    expect(described_class.fetch("Homebrew", "core")).to be_kind_of(CoreTap)
-    expect(described_class.fetch("Homebrew", "homebrew")).to be_kind_of(CoreTap)
+    expect(described_class.fetch("Homebrew", "core")).to be_a(CoreTap)
+    expect(described_class.fetch("Homebrew", "homebrew")).to be_a(CoreTap)
     tap = described_class.fetch("Homebrew", "foo")
-    expect(tap).to be_kind_of(described_class)
+    expect(tap).to be_a(described_class)
     expect(tap.name).to eq("homebrew/foo")
 
     expect {
@@ -156,7 +156,7 @@ describe Tap do
     expect(homebrew_foo_tap.issues_url).to eq("https://github.com/Homebrew/homebrew-foo/issues")
 
     (Tap::TAP_DIRECTORY/"someone/homebrew-no-git").mkpath
-    expect(described_class.new("someone", "no-git").issues_url).to be nil
+    expect(described_class.new("someone", "no-git").issues_url).to be_nil
   ensure
     path.parent.rmtree
   end
@@ -173,7 +173,7 @@ describe Tap do
     expect(homebrew_foo_tap.formula_renames).to eq("oldname" => "foo")
     expect(homebrew_foo_tap.tap_migrations).to eq("removed-formula" => "homebrew/foo")
     expect(homebrew_foo_tap.command_files).to eq([cmd_file])
-    expect(homebrew_foo_tap.to_hash).to be_kind_of(Hash)
+    expect(homebrew_foo_tap.to_hash).to be_a(Hash)
     expect(homebrew_foo_tap).to have_formula_file(formula_file)
     expect(homebrew_foo_tap).to have_formula_file("Formula/foo.rb")
     expect(homebrew_foo_tap).not_to have_formula_file("bar.rb")
@@ -198,13 +198,13 @@ describe Tap do
     end
 
     it "returns nil if the Tap is not a Git repository" do
-      expect(homebrew_foo_tap.remote).to be nil
+      expect(homebrew_foo_tap.remote).to be_nil
     end
 
     it "returns nil if Git is not available" do
       setup_git_repo
       allow(Utils::Git).to receive(:available?).and_return(false)
-      expect(homebrew_foo_tap.remote).to be nil
+      expect(homebrew_foo_tap.remote).to be_nil
     end
   end
 
@@ -240,13 +240,13 @@ describe Tap do
     end
 
     it "returns nil if the Tap is not a Git repository" do
-      expect(homebrew_foo_tap.remote_repo).to be nil
+      expect(homebrew_foo_tap.remote_repo).to be_nil
     end
 
     it "returns nil if Git is not available" do
       setup_git_repo
       allow(Utils::Git).to receive(:available?).and_return(false)
-      expect(homebrew_foo_tap.remote_repo).to be nil
+      expect(homebrew_foo_tap.remote_repo).to be_nil
     end
   end
 
@@ -258,8 +258,7 @@ describe Tap do
     expect(homebrew_foo_tap.git_last_commit).to match(/\A\d+ .+ ago\Z/)
   end
 
-  specify "#private?" do
-    skip "HOMEBREW_GITHUB_API_TOKEN is required" unless GitHub::API.credentials
+  specify "#private?", :needs_network do
     expect(homebrew_foo_tap).to be_private
   end
 
@@ -337,7 +336,7 @@ describe Tap do
       it "disables forced auto-updates when false" do
         expect(already_tapped_tap).to be_installed
         already_tapped_tap.install force_auto_update: false
-        expect(already_tapped_tap.config["forceautoupdate"]).to eq("false")
+        expect(already_tapped_tap.config["forceautoupdate"]).to be_nil
       end
     end
 
@@ -450,11 +449,11 @@ describe Tap do
   specify "#config" do
     setup_git_repo
 
-    expect(homebrew_foo_tap.config["foo"]).to be nil
+    expect(homebrew_foo_tap.config["foo"]).to be_nil
     homebrew_foo_tap.config["foo"] = "bar"
     expect(homebrew_foo_tap.config["foo"]).to eq("bar")
-    homebrew_foo_tap.config["foo"] = nil
-    expect(homebrew_foo_tap.config["foo"]).to be nil
+    homebrew_foo_tap.config.delete("foo")
+    expect(homebrew_foo_tap.config["foo"]).to be_nil
   end
 
   describe "#each" do

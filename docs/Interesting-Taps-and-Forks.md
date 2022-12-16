@@ -1,4 +1,4 @@
-# Interesting Taps & Forks
+# Interesting Taps and Forks
 
 A [tap](Taps.md) is Homebrew-speak for a Git repository containing additional formulae.
 
@@ -27,6 +27,8 @@ Your taps are Git repositories located at `$(brew --repository)/Library/Taps`.
 * [lifepillar/appleii](https://github.com/lifepillar/homebrew-appleii): Formulae for vintage Apple emulation.
 
 * [gromgit/fuse](https://github.com/gromgit/homebrew-fuse): macOS FUSE formulae that are no longer available in `homebrew/core`.
+
+* [cloudflare/cloudflare](https://github.com/cloudflare/homebrew-cloudflare): Formulae for the applications by Cloudflare, including curl with HTTP/3 support.
 
 ## Unsupported interesting forks
 

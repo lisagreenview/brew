@@ -22,6 +22,8 @@ module RuboCop
             end
           end
 
+          return if body_node.nil?
+
           if !find_node_method_by_name(body_node, :plist_options) &&
              find_method_def(body_node, :plist)
             problem "Please set plist_options when using a formula-defined plist."
@@ -33,13 +35,6 @@ module RuboCop
 
           if formula_tap == "homebrew-core" && (depends_on?("veclibfort") || depends_on?("lapack"))
             problem "Formulae in homebrew/core should use OpenBLAS as the default serial linear algebra library."
-          end
-
-          if method_called_ever?(body_node, :virtualenv_create) ||
-             method_called_ever?(body_node, :virtualenv_install_with_resources)
-            find_method_with_args(body_node, :resource, "setuptools") do
-              problem "Formulae using virtualenvs do not need a `setuptools` resource."
-            end
           end
 
           unless method_called_ever?(body_node, :go_resource)
@@ -70,7 +65,9 @@ module RuboCop
             problem "use \"dep\", \"ensure\", \"-vendor-only\""
           end
 
-          find_method_with_args(body_node, :system, "cargo", "build") do
+          find_method_with_args(body_node, :system, "cargo", "build") do |m|
+            next if parameters_passed?(m, /--lib/)
+
             problem "use \"cargo\", \"install\", *std_cargo_args"
           end
 
@@ -111,6 +108,8 @@ module RuboCop
       # @api private
       class Text < FormulaCop
         def audit_formula(_node, _class_node, _parent_class_node, body_node)
+          return if body_node.nil?
+
           find_method_with_args(body_node, :go_resource) do
             problem "`go_resource`s are deprecated. Please ask upstream to implement Go vendoring"
           end

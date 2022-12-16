@@ -40,13 +40,16 @@ module SharedEnvExtension
       build_bottle:    T.nilable(T::Boolean),
       bottle_arch:     T.nilable(String),
       testing_formula: T::Boolean,
+      debug_symbols:   T.nilable(T::Boolean),
     ).void
   }
-  def setup_build_environment(formula: nil, cc: nil, build_bottle: false, bottle_arch: nil, testing_formula: false)
+  def setup_build_environment(formula: nil, cc: nil, build_bottle: false, bottle_arch: nil, testing_formula: false,
+                              debug_symbols: false)
     @formula = formula
     @cc = cc
     @build_bottle = build_bottle
     @bottle_arch = bottle_arch
+    @debug_symbols = debug_symbols
     reset
   end
   private :setup_build_environment
@@ -61,7 +64,7 @@ module SharedEnvExtension
   sig { returns(T::Hash[String, String]) }
   def remove_cc_etc
     keys = %w[CC CXX OBJC OBJCXX LD CPP CFLAGS CXXFLAGS OBJCFLAGS OBJCXXFLAGS LDFLAGS CPPFLAGS]
-    keys.map { |key| [key, delete(key)] }.to_h
+    keys.to_h { |key| [key, delete(key)] }
   end
 
   sig { params(newflags: String).void }

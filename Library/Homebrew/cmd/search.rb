@@ -42,8 +42,12 @@ module Homebrew
       switch "--cask", "--casks",
              description: "Search online and locally for casks."
       switch "--desc",
-             description: "Search for formulae with a description matching <text> and casks with "\
-                          "a name matching <text>."
+             description: "Search for formulae with a description matching <text> and casks with " \
+                          "a name or description matching <text>."
+      switch "--eval-all",
+             depends_on:  "--desc",
+             description: "Evaluate all available formulae and casks, whether installed or not, to search their " \
+                          "descriptions. Implied if HOMEBREW_EVAL_ALL is set."
       switch "--pull-request",
              description: "Search for GitHub pull requests containing <text>."
       switch "--open",
@@ -75,12 +79,18 @@ module Homebrew
     string_or_regex = query_regexp(query)
 
     if args.desc?
+      if !args.eval_all? && !Homebrew::EnvConfig.eval_all?
+        odeprecated "brew search --desc", "brew search --desc --eval-all or HOMEBREW_EVAL_ALL"
+      end
       search_descriptions(string_or_regex, args)
     elsif args.pull_request?
       search_pull_requests(query, args)
     else
-      search_names(query, string_or_regex, args)
+      formulae, casks = search_names(query, string_or_regex, args)
+      print_results(formulae, casks, query)
     end
+
+    puts "Use `brew desc` to list packages with a short description." if args.verbose?
 
     print_regex_help(args)
   end
@@ -120,30 +130,26 @@ module Homebrew
     GitHub.print_pull_requests_matching(query, only)
   end
 
-  def search_names(query, string_or_regex, args)
-    remote_results = search_taps(query, silent: true)
+  def print_results(all_formulae, all_casks, query)
+    count = all_formulae.size + all_casks.size
 
-    local_formulae = search_formulae(string_or_regex)
-    remote_formulae = remote_results[:formulae]
-    all_formulae = local_formulae + remote_formulae
+    if all_formulae.any?
+      if $stdout.tty?
+        ohai "Formulae", Formatter.columns(all_formulae)
+      else
+        puts all_formulae
+      end
+    end
+    puts if all_formulae.any? && all_casks.any?
+    if all_casks.any?
+      if $stdout.tty?
+        ohai "Casks", Formatter.columns(all_casks)
+      else
+        puts all_casks
+      end
+    end
 
-    local_casks = search_casks(string_or_regex)
-    remote_casks = remote_results[:casks]
-    all_casks = local_casks + remote_casks
-
-    print_formulae = args.formula?
-    print_casks = args.cask?
-    print_formulae = print_casks = true if !print_formulae && !print_casks
-    print_formulae &&= all_formulae.any?
-    print_casks &&= all_casks.any?
-
-    ohai "Formulae", Formatter.columns(all_formulae) if print_formulae
-    puts if print_formulae && print_casks
-    ohai "Casks", Formatter.columns(all_casks) if print_casks
-
-    count = all_formulae.count + all_casks.count
-
-    print_missing_formula_help(query, count.positive?) if local_casks.exclude?(query)
+    print_missing_formula_help(query, count.positive?) if all_casks.exclude?(query)
 
     odie "No formulae or casks found for #{query.inspect}." if count.zero?
   end

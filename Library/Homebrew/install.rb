@@ -30,6 +30,10 @@ module Homebrew
       Diagnostic.checks(:build_from_source_checks, fatal: all_fatal)
     end
 
+    def global_post_install; end
+    alias generic_global_post_install global_post_install
+    module_function :generic_global_post_install
+
     def check_prefix
       if (Hardware::CPU.intel? || Hardware::CPU.in_rosetta2?) &&
          HOMEBREW_PREFIX.to_s == HOMEBREW_MACOS_ARM_DEFAULT_PREFIX
@@ -125,16 +129,17 @@ module Homebrew
         # dependencies. Therefore before performing other checks we need to be
         # sure --force flag is passed.
         if f.outdated?
-          unless Homebrew::EnvConfig.no_install_upgrade?
+          if !Homebrew::EnvConfig.no_install_upgrade? && !f.pinned?
             puts "#{f.name} #{f.linked_version} is already installed but outdated (so it will be upgraded)."
             return true
           end
 
+          unpin_cmd_if_needed = ("brew unpin #{f.full_name} && " if f.pinned?)
           optlinked_version = Keg.for(f.opt_prefix).version
           onoe <<~EOS
             #{f.full_name} #{optlinked_version} is already installed.
             To upgrade to #{f.version}, run:
-              brew upgrade #{f.full_name}
+              #{unpin_cmd_if_needed}brew upgrade #{f.full_name}
           EOS
         elsif only_dependencies
           return true
@@ -215,15 +220,16 @@ module Homebrew
       elsif f.linked?
         message = "#{f.name} #{f.linked_version} is already installed"
         if f.outdated? && !head
-          unless Homebrew::EnvConfig.no_install_upgrade?
+          if !Homebrew::EnvConfig.no_install_upgrade? && !f.pinned?
             puts "#{message} but outdated (so it will be upgraded)."
             return true
           end
 
+          unpin_cmd_if_needed = ("brew unpin #{f.full_name} && " if f.pinned?)
           onoe <<~EOS
             #{message}
             To upgrade to #{f.pkg_version}, run:
-              brew upgrade #{f.full_name}
+              #{unpin_cmd_if_needed}brew upgrade #{f.full_name}
           EOS
         elsif only_dependencies
           return true
@@ -267,13 +273,16 @@ module Homebrew
       git: false,
       interactive: false,
       keep_tmp: false,
+      debug_symbols: false,
       force: false,
+      overwrite: false,
       debug: false,
       quiet: false,
-      verbose: false
+      verbose: false,
+      dry_run: false
     )
       formula_installers = formulae_to_install.map do |f|
-        Migrator.migrate_if_needed(f, force: force)
+        Migrator.migrate_if_needed(f, force: force, dry_run: dry_run)
         build_options = f.build
 
         fi = FormulaInstaller.new(
@@ -290,15 +299,19 @@ module Homebrew
           git:                        git,
           interactive:                interactive,
           keep_tmp:                   keep_tmp,
+          debug_symbols:              debug_symbols,
           force:                      force,
+          overwrite:                  overwrite,
           debug:                      debug,
           quiet:                      quiet,
           verbose:                    verbose,
         )
 
         begin
-          fi.prelude
-          fi.fetch
+          unless dry_run
+            fi.prelude
+            fi.fetch
+          end
           fi
         rescue CannotInstallFormulaError => e
           ofail e.message
@@ -308,6 +321,20 @@ module Homebrew
           nil
         end
       end.compact
+
+      if dry_run
+        if (formulae_name_to_install = formulae_to_install.map(&:name))
+          plural = "formula".pluralize(formulae_name_to_install.count)
+          ohai "Would install #{formulae_name_to_install.count} #{plural}:"
+          puts formulae_name_to_install.join(" ")
+
+          formula_installers.each do |fi|
+            f = fi.formula
+            print_dry_run_dependencies(f, fi.compute_dependencies, &:name)
+          end
+        end
+        return
+      end
 
       formula_installers.each do |fi|
         install_formula(fi)
@@ -323,6 +350,15 @@ module Homebrew
       Upgrade.install_formula(formula_installer, upgrade: upgrade)
     end
     private_class_method :install_formula
+
+    def print_dry_run_dependencies(formula, dependencies, &block)
+      return if dependencies.empty?
+
+      plural = "dependency".pluralize(dependencies.count)
+      ohai "Would install #{dependencies.count} #{plural} for #{formula.name}:"
+      formula_names = dependencies.map(&:first).map(&:to_formula).map(&block)
+      puts formula_names.join(" ")
+    end
   end
 end
 

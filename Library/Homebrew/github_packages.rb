@@ -3,6 +3,7 @@
 
 require "utils/curl"
 require "json"
+require "zlib"
 
 # GitHub Packages client.
 #
@@ -20,6 +21,9 @@ class GitHubPackages
   private_constant :DOCKER_PREFIX
 
   URL_REGEX = %r{(?:#{Regexp.escape(URL_PREFIX)}|#{Regexp.escape(DOCKER_PREFIX)})([\w-]+)/([\w-]+)}.freeze
+
+  GZIP_BUFFER_SIZE = 64 * 1024
+  private_constant :GZIP_BUFFER_SIZE
 
   # Translate Homebrew tab.arch to OCI platform.architecture
   TAB_ARCH_TO_PLATFORM_ARCHITECTURE = {
@@ -147,7 +151,10 @@ class GitHubPackages
   end
 
   def schema_uri(basename, uris)
-    url = "https://raw.githubusercontent.com/opencontainers/image-spec/master/schema/#{basename}.json"
+    # The current `main` version has an invalid JSON schema.
+    # Going forward, this should probably be pinned to tags.
+    # We currently use features newer than the last one (v1.0.2).
+    url = "https://raw.githubusercontent.com/opencontainers/image-spec/170393e57ed656f7f81c3070bfa8c3346eaa0a5a/schema/#{basename}.json"
     out, = curl_output(url)
     json = JSON.parse(out)
 
@@ -326,9 +333,9 @@ class GitHubPackages
         os_version ||= "macOS #{bottle_tag.to_macos_version}"
       when "linux"
         os_version&.delete_suffix!(" LTS")
-        os_version ||= OS::CI_OS_VERSION
+        os_version ||= OS::LINUX_CI_OS_VERSION
         glibc_version = tab["built_on"]["glibc_version"].presence if tab["built_on"].present?
-        glibc_version ||= OS::CI_GLIBC_VERSION
+        glibc_version ||= OS::LINUX_GLIBC_CI_VERSION
         cpu_variant = tab["oldest_cpu_family"] || Hardware::CPU::INTEL_64BIT_OLDEST_CPU.to_s
       end
 
@@ -338,11 +345,14 @@ class GitHubPackages
         "os.version" => os_version,
       }.reject { |_, v| v.blank? }
 
-      tar_sha256 = Digest::SHA256.hexdigest(
-        Utils.safe_popen_read("gunzip", "--stdout", "--decompress", local_file),
-      )
+      tar_sha256 = Digest::SHA256.new
+      Zlib::GzipReader.open(local_file) do |gz|
+        while (data = gz.read(GZIP_BUFFER_SIZE))
+          tar_sha256 << data
+        end
+      end
 
-      config_json_sha256, config_json_size = write_image_config(platform_hash, tar_sha256, blobs)
+      config_json_sha256, config_json_size = write_image_config(platform_hash, tar_sha256.hexdigest, blobs)
 
       formulae_dir = tag_hash["formulae_brew_sh_path"]
       documentation = "https://formulae.brew.sh/#{formulae_dir}/#{formula_name}" if formula_core_tap

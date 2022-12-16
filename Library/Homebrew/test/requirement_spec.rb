@@ -12,7 +12,7 @@ describe Requirement do
   let(:klass) { Class.new(described_class) }
 
   describe "#tags" do
-    subject { described_class.new(tags) }
+    subject { klass.new(tags) }
 
     context "with a single tag" do
       let(:tags) { ["bar"] }
@@ -149,7 +149,7 @@ describe Requirement do
 
   describe "#build?" do
     context "when the :build tag is specified" do
-      subject { described_class.new([:build]) }
+      subject { klass.new([:build]) }
 
       it { is_expected.to be_a_build_requirement }
     end
@@ -180,30 +180,30 @@ describe Requirement do
       let(:klass) { Class.new(described_class) }
 
       it "returns nil" do
-        expect(requirement.modify_build_environment).to be nil
+        expect(requirement.modify_build_environment).to be_nil
       end
     end
   end
 
   describe "#eql? and #==" do
-    subject(:requirement) { described_class.new }
+    subject(:requirement) { klass.new }
 
     it "returns true if the names and tags are equal" do
-      other = described_class.new
+      other = klass.new
 
       expect(requirement).to eql(other)
       expect(requirement).to eq(other)
     end
 
     it "returns false if names differ" do
-      other = described_class.new
+      other = klass.new
       allow(other).to receive(:name).and_return("foo")
       expect(requirement).not_to eql(other)
       expect(requirement).not_to eq(other)
     end
 
     it "returns false if tags differ" do
-      other = described_class.new([:optional])
+      other = klass.new([:optional])
 
       expect(requirement).not_to eql(other)
       expect(requirement).not_to eq(other)
@@ -211,21 +211,21 @@ describe Requirement do
   end
 
   describe "#hash" do
-    subject(:requirement) { described_class.new }
+    subject(:requirement) { klass.new }
 
     it "is equal if names and tags are equal" do
-      other = described_class.new
+      other = klass.new
       expect(requirement.hash).to eq(other.hash)
     end
 
     it "differs if names differ" do
-      other = described_class.new
+      other = klass.new
       allow(other).to receive(:name).and_return("foo")
       expect(requirement.hash).not_to eq(other.hash)
     end
 
     it "differs if tags differ" do
-      other = described_class.new([:optional])
+      other = klass.new([:optional])
       expect(requirement.hash).not_to eq(other.hash)
     end
   end

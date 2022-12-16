@@ -107,6 +107,8 @@ module Hardware
           :arm_lightning_thunder
         when 0x573b5eec, 0x1b588bb3 # ARMv8.4-A (Firestorm, Icestorm)
           :arm_firestorm_icestorm
+        when 0xda33d83d             # ARMv8.5-A (Blizzard, Avalanche)
+          :arm_blizzard_avalanche
         else
           :dunno
         end
@@ -138,6 +140,8 @@ module Hardware
           :kabylake
         when 0x38435547 # Ice Lake
           :icelake
+        when 0x1cf8a03e # Comet Lake
+          :cometlake
         else
           :dunno
         end
@@ -148,7 +152,7 @@ module Hardware
       end
 
       def sysctl_int(key)
-        sysctl_n(key).to_i
+        sysctl_n(key).to_i & 0xffffffff
       end
 
       def sysctl_n(*keys)

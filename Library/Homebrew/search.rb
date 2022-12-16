@@ -25,7 +25,8 @@ module Homebrew
       ohai "Formulae"
       CacheStoreDatabase.use(:descriptions) do |db|
         cache_store = DescriptionCacheStore.new(db)
-        Descriptions.search(string_or_regex, :desc, cache_store).print
+        eval_all = args.eval_all? || Homebrew::EnvConfig.eval_all?
+        Descriptions.search(string_or_regex, :desc, cache_store, eval_all).print
       end
     end
 
@@ -89,7 +90,7 @@ module Homebrew
                 .search(string_or_regex)
                 .sort
 
-      results |= Formula.fuzzy_search(string_or_regex)
+      results |= Formula.fuzzy_search(string_or_regex).map { |n| Formulary.factory(n).full_name }
 
       results.map do |name|
         formula, canonical_full_name = begin
@@ -112,6 +113,26 @@ module Homebrew
 
     def search_casks(_string_or_regex)
       []
+    end
+
+    def search_names(query, string_or_regex, args)
+      both = !args.formula? && !args.cask?
+
+      remote_results = search_taps(query, silent: true)
+
+      all_formulae = if args.formula? || both
+        search_formulae(string_or_regex) + remote_results[:formulae]
+      else
+        []
+      end
+
+      all_casks = if args.cask? || both
+        search_casks(string_or_regex) + remote_results[:casks]
+      else
+        []
+      end
+
+      [all_formulae, all_casks]
     end
   end
 end

@@ -4,6 +4,9 @@ module Homebrew
   module CLI
     class Args < OpenStruct
       sig { returns(T::Boolean) }
+      def remove_bottle_block?; end
+
+      sig { returns(T::Boolean) }
       def strict?; end
 
       sig { returns(T::Boolean) }
@@ -26,6 +29,9 @@ module Homebrew
 
       sig { returns(T::Boolean) }
       def newer_only?; end
+
+      sig { returns(T::Boolean) }
+      def resources?; end
 
       sig { returns(T::Boolean) }
       def full_name?; end
@@ -85,6 +91,9 @@ module Homebrew
       def keep_tmp?; end
 
       sig { returns(T::Boolean) }
+      def debug_symbols?; end
+
+      sig { returns(T::Boolean) }
       def overwrite?; end
 
       sig { returns(T::Boolean) }
@@ -127,6 +136,9 @@ module Homebrew
       def all?; end
 
       sig { returns(T::Boolean) }
+      def eval_all?; end
+
+      sig { returns(T::Boolean) }
       def full?; end
 
       sig { returns(T::Boolean) }
@@ -137,6 +149,9 @@ module Homebrew
 
       sig { returns(T::Boolean) }
       def syntax?; end
+
+      sig { returns(T::Boolean) }
+      def no_simulate?; end
 
       sig { returns(T::Boolean) }
       def ignore_non_pypi_packages?; end
@@ -297,6 +312,15 @@ module Homebrew
       sig { returns(T.nilable(String)) }
       def screen_saverdir; end
 
+      sig { returns(T::Array[String])}
+      def repositories; end
+
+      sig { returns(T.nilable(String)) }
+      def from; end
+
+      sig { returns(T.nilable(String)) }
+      def to; end
+
       sig { returns(T.nilable(T::Array[String])) }
       def groups; end
 
@@ -308,6 +332,9 @@ module Homebrew
 
       sig { returns(T::Boolean) }
       def print_path?; end
+
+      sig { returns(T.nilable(T::Boolean)) }
+      def force_auto_update?; end
     end
   end
 end

@@ -3,6 +3,7 @@
 
 require "tempfile"
 require "utils/shell"
+require "utils/formatter"
 
 module GitHub
   API_URL = "https://api.github.com"
@@ -10,7 +11,7 @@ module GitHub
   API_MAX_ITEMS = 5000
 
   CREATE_GIST_SCOPES = ["gist"].freeze
-  CREATE_ISSUE_FORK_OR_PR_SCOPES = ["public_repo"].freeze
+  CREATE_ISSUE_FORK_OR_PR_SCOPES = ["repo"].freeze
   CREATE_WORKFLOW_SCOPES = ["workflow"].freeze
   ALL_SCOPES = (CREATE_GIST_SCOPES + CREATE_ISSUE_FORK_OR_PR_SCOPES + CREATE_WORKFLOW_SCOPES).freeze
   ALL_SCOPES_URL = Formatter.url(
@@ -184,8 +185,10 @@ module GitHub
       # This is a no-op if the user is opting out of using the GitHub API.
       return block_given? ? yield({}) : {} if Homebrew::EnvConfig.no_github_api?
 
-      args = ["--header", "Accept: application/vnd.github.v3+json", "--write-out", "\n%\{http_code}"]
-      args += ["--header", "Accept: application/vnd.github.antiope-preview+json"]
+      # This is a Curl format token, not a Ruby one.
+      # rubocop:disable Style/FormatStringToken
+      args = ["--header", "Accept: application/vnd.github+json", "--write-out", "\n%{http_code}"]
+      # rubocop:enable Style/FormatStringToken
 
       token = credentials
       args += ["--header", "Authorization: token #{token}"] unless credentials_type == :none
@@ -253,17 +256,19 @@ module GitHub
       end
     end
 
-    def open_graphql(query, scopes: [].freeze)
-      data = { query: query }
+    def open_graphql(query, variables: nil, scopes: [].freeze, raise_errors: true)
+      data = { query: query, variables: variables }
       result = open_rest("#{API_URL}/graphql", scopes: scopes, data: data, request_method: "POST")
 
-      if result["errors"].present?
-        raise Error, result["errors"].map { |e|
-                       "#{e["type"]}: #{e["message"]}"
-                     }.join("\n")
-      end
+      if raise_errors
+        if result["errors"].present?
+          raise Error, result["errors"].map { |e| "#{e["type"]}: #{e["message"]}" }.join("\n")
+        end
 
-      result["data"]
+        result["data"]
+      else
+        result
+      end
     end
 
     def raise_error(output, errors, http_code, headers, scopes)

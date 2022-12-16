@@ -10,10 +10,11 @@ module RuboCop
       class Homepage < FormulaCop
         extend AutoCorrector
 
-        def audit_formula(_node, _class_node, _parent_class_node, body_node)
+        def audit_formula(_node, class_node, _parent_class_node, body_node)
           homepage_node = find_node_method_by_name(body_node, :homepage)
 
           if homepage_node.nil?
+            offending_node(class_node) if body_node.nil?
             problem "Formula should have a homepage."
             return
           end
@@ -33,7 +34,7 @@ module RuboCop
           # "Software" is redirected to https://wiki.freedesktop.org/www/Software/project_name
           when %r{^http://((?:www|nice|libopenraw|liboil|telepathy|xorg)\.)?freedesktop\.org/(?:wiki/)?}
             if homepage.include?("Software")
-              problem "Freedesktop homepages should be styled "\
+              problem "Freedesktop homepages should be styled " \
                       "`https://wiki.freedesktop.org/www/Software/project_name`"
             else
               problem "Freedesktop homepages should be styled `https://wiki.freedesktop.org/project_name`"
@@ -57,7 +58,7 @@ module RuboCop
               corrector.replace(homepage_parameter_node.source_range, "\"#{fixed}\"")
             end
 
-          when %r{^https://github.com.*\.git}
+          when %r{^https://github.com.*\.git$}
             problem "GitHub homepages should not end with .git" do |corrector|
               corrector.replace(homepage_parameter_node.source_range, "\"#{homepage.delete_suffix(".git")}\"")
             end
@@ -70,12 +71,12 @@ module RuboCop
           when
                # Check for http:// GitHub homepage URLs, https:// is preferred.
                # Note: only check homepages that are repo pages, not *.github.com hosts
-               %r{^http://github.com/},
+               %r{^http://github\.com/},
                %r{^http://[^/]*\.github\.io/},
 
                # Savannah has full SSL/TLS support but no auto-redirect.
                # Doesn't apply to the download URLs, only the homepage.
-               %r{^http://savannah.nongnu.org/},
+               %r{^http://savannah\.nongnu\.org/},
 
                %r{^http://[^/]*\.sourceforge\.io/},
                # There's an auto-redirect here, but this mistake is incredibly common too.

@@ -11,23 +11,6 @@ describe Homebrew::Diagnostic::Checks do
     expect(checks.inject_file_list(%w[/a /b], "foo:\n")).to eq("foo:\n  /a\n  /b\n")
   end
 
-  specify "#check_for_anaconda" do
-    mktmpdir do |path|
-      anaconda = "#{path}/anaconda"
-      python = "#{path}/python"
-      FileUtils.touch anaconda
-      File.open(python, "w") do |file|
-        file.write("#! #{`which bash`}\necho -n '#{python}'\n")
-      end
-      FileUtils.chmod 0755, anaconda
-      FileUtils.chmod 0755, python
-
-      ENV["PATH"] = "#{path}#{File::PATH_SEPARATOR}#{ENV["PATH"]}"
-
-      expect(checks.check_for_anaconda).to match("Anaconda")
-    end
-  end
-
   specify "#check_access_directories" do
     skip "User is root so everything is writable." if Process.euid.zero?
     begin
@@ -70,37 +53,26 @@ describe Homebrew::Diagnostic::Checks do
     ENV["PATH"] = ENV["PATH"].gsub \
       %r{(?:^|#{File::PATH_SEPARATOR})#{HOMEBREW_PREFIX}/bin}o, ""
 
-    expect(checks.check_user_path_1).to be nil
+    expect(checks.check_user_path_1).to be_nil
     expect(checks.check_user_path_2)
       .to match("Homebrew's \"bin\" was not found in your PATH.")
   end
 
   specify "#check_user_path_3" do
     sbin = HOMEBREW_PREFIX/"sbin"
-    ENV["HOMEBREW_PATH"] =
-      "#{HOMEBREW_PREFIX}/bin#{File::PATH_SEPARATOR}" +
-      ENV["HOMEBREW_PATH"].gsub(/(?:^|#{Regexp.escape(File::PATH_SEPARATOR)})#{Regexp.escape(sbin)}/, "")
     (sbin/"something").mkpath
 
-    expect(checks.check_user_path_1).to be nil
-    expect(checks.check_user_path_2).to be nil
+    homebrew_path =
+      "#{HOMEBREW_PREFIX}/bin#{File::PATH_SEPARATOR}" +
+      ENV["HOMEBREW_PATH"].gsub(/(?:^|#{Regexp.escape(File::PATH_SEPARATOR)})#{Regexp.escape(sbin)}/, "")
+    stub_const("ORIGINAL_PATHS", PATH.new(homebrew_path).map { |path| Pathname.new(path).expand_path }.compact)
+
+    expect(checks.check_user_path_1).to be_nil
+    expect(checks.check_user_path_2).to be_nil
     expect(checks.check_user_path_3)
       .to match("Homebrew's \"sbin\" was not found in your PATH")
   ensure
     sbin.rmtree
-  end
-
-  specify "#check_for_config_scripts" do
-    mktmpdir do |path|
-      file = "#{path}/foo-config"
-      FileUtils.touch file
-      FileUtils.chmod 0755, file
-      ENV["HOMEBREW_PATH"] = ENV["PATH"] =
-        "#{path}#{File::PATH_SEPARATOR}#{ENV["PATH"]}"
-
-      expect(checks.check_for_config_scripts)
-        .to match('"config" scripts exist')
-    end
   end
 
   specify "#check_for_symlinked_cellar" do

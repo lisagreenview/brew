@@ -24,6 +24,7 @@ module Homebrew
       build_from_source_formulae: [],
       interactive: false,
       keep_tmp: false,
+      debug_symbols: false,
       force: false,
       debug: false,
       quiet: false,
@@ -61,6 +62,7 @@ module Homebrew
             build_from_source_formulae: build_from_source_formulae,
             interactive:                interactive,
             keep_tmp:                   keep_tmp,
+            debug_symbols:              debug_symbols,
             force:                      force,
             debug:                      debug,
             quiet:                      quiet,
@@ -92,22 +94,6 @@ module Homebrew
                                                 .map { |k| Keg.new(k.resolved_path) }
     end
 
-    def print_dry_run_dependencies(formula, fi_deps)
-      return if fi_deps.empty?
-
-      plural = "dependency".pluralize(fi_deps.count)
-      ohai "Would upgrade #{fi_deps.count} #{plural} for #{formula.full_specified_name}:"
-      formulae_upgrades = fi_deps.map(&:first).map(&:to_formula).map do |f|
-        name = f.full_specified_name
-        if f.optlinked?
-          "#{name} #{Keg.new(f.opt_prefix).version} -> #{f.pkg_version}"
-        else
-          "#{name} #{f.pkg_version}"
-        end
-      end
-      puts formulae_upgrades.join(", ")
-    end
-
     def print_upgrade_message(formula, fi_options)
       version_upgrade = if formula.optlinked?
         "#{Keg.new(formula.opt_prefix).version} -> #{formula.pkg_version}"
@@ -128,6 +114,7 @@ module Homebrew
       build_from_source_formulae: [],
       interactive: false,
       keep_tmp: false,
+      debug_symbols: false,
       force: false,
       debug: false,
       quiet: false,
@@ -161,6 +148,7 @@ module Homebrew
           build_from_source_formulae: build_from_source_formulae,
           interactive:                interactive,
           keep_tmp:                   keep_tmp,
+          debug_symbols:              debug_symbols,
           force:                      force,
           debug:                      debug,
           quiet:                      quiet,
@@ -174,7 +162,14 @@ module Homebrew
       formula = formula_installer.formula
 
       if dry_run
-        print_dry_run_dependencies(formula, formula_installer.compute_dependencies)
+        Install.print_dry_run_dependencies(formula, formula_installer.compute_dependencies) do |f|
+          name = f.full_specified_name
+          if f.optlinked?
+            "#{name} #{Keg.new(f.opt_prefix).version} -> #{f.pkg_version}"
+          else
+            "#{name} #{f.pkg_version}"
+          end
+        end
         return
       end
 
@@ -235,6 +230,16 @@ module Homebrew
       end
     end
 
+    def self.puts_no_installed_dependents_check_disable_message_if_not_already!
+      return if Homebrew::EnvConfig.no_env_hints?
+      return if Homebrew::EnvConfig.no_installed_dependents_check?
+      return if @puts_no_installed_dependents_check_disable_message_if_not_already
+
+      puts "Disable this behaviour by setting HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK."
+      puts "Hide these hints with HOMEBREW_NO_ENV_HINTS (see `man brew`)."
+      @puts_no_installed_dependents_check_disable_message_if_not_already = true
+    end
+
     def check_installed_dependents(
       formulae,
       flags:,
@@ -244,14 +249,22 @@ module Homebrew
       build_from_source_formulae: [],
       interactive: false,
       keep_tmp: false,
+      debug_symbols: false,
       force: false,
       debug: false,
       quiet: false,
       verbose: false
     )
-      return if Homebrew::EnvConfig.no_installed_dependents_check?
+      if Homebrew::EnvConfig.no_installed_dependents_check?
+        opoo <<~EOS
+          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK is set: not checking for outdated
+          dependents or dependents with broken linkage!
+        EOS
+        return
+      end
 
-      installed_formulae = dry_run ? formulae : FormulaInstaller.installed.to_a
+      installed_formulae = (dry_run ? formulae : FormulaInstaller.installed.to_a).dup
+      installed_formulae.reject! { |f| f.core_formula? && f.versioned_formula? }
       return if installed_formulae.empty?
 
       already_broken_dependents = check_broken_dependents(installed_formulae)
@@ -260,6 +273,20 @@ module Homebrew
         installed_formulae.flat_map(&:runtime_installed_formula_dependents)
                           .uniq
                           .select(&:outdated?)
+
+      # Ensure we never attempt a source build for outdated dependents of upgraded formulae.
+      outdated_dependents, skipped_dependents = outdated_dependents.partition do |dependent|
+        dependent.bottled? && dependent.deps.map(&:to_formula).all?(&:bottled?)
+      end
+
+      if skipped_dependents.present?
+        opoo <<~EOS
+          The following dependents of upgraded formulae are outdated but will not
+          be upgraded because they are not bottled:
+            #{skipped_dependents * "\n  "}
+        EOS
+      end
+
       return if outdated_dependents.blank? && already_broken_dependents.blank?
 
       outdated_dependents -= installed_formulae if dry_run
@@ -283,9 +310,11 @@ module Homebrew
       if upgradeable_dependents.blank?
         ohai "No outdated dependents to upgrade!" unless dry_run
       else
-        plural = "dependent".pluralize(upgradeable_dependents.count)
-        verb = dry_run ? "Would upgrade" : "Upgrading"
-        ohai "#{verb} #{upgradeable_dependents.count} #{plural}:"
+        dependent_plural = "dependent".pluralize(upgradeable_dependents.count)
+        formula_plural = "formula".pluralize(installed_formulae.count)
+        upgrade_verb = dry_run ? "Would upgrade" : "Upgrading"
+        ohai "#{upgrade_verb} #{upgradeable_dependents.count} #{dependent_plural} of upgraded #{formula_plural}:"
+        Upgrade.puts_no_installed_dependents_check_disable_message_if_not_already!
         formulae_upgrades = upgradeable_dependents.map do |f|
           name = f.full_specified_name
           if f.optlinked?
@@ -306,6 +335,7 @@ module Homebrew
           build_from_source_formulae: build_from_source_formulae,
           interactive:                interactive,
           keep_tmp:                   keep_tmp,
+          debug_symbols:              debug_symbols,
           force:                      force,
           debug:                      debug,
           quiet:                      quiet,
@@ -317,7 +347,10 @@ module Homebrew
       installed_formulae = FormulaInstaller.installed.to_a
 
       # Assess the dependents tree again now we've upgraded.
-      oh1 "Checking for dependents of upgraded formulae..." unless dry_run
+      unless dry_run
+        oh1 "Checking for dependents of upgraded formulae..."
+        Upgrade.puts_no_installed_dependents_check_disable_message_if_not_already!
+      end
 
       broken_dependents = check_broken_dependents(installed_formulae)
       if broken_dependents.blank?
@@ -356,6 +389,7 @@ module Homebrew
         count = reinstallable_broken_dependents.count
         plural = "dependent".pluralize(reinstallable_broken_dependents.count)
         ohai "Reinstalling #{count} #{plural} with broken linkage from source:"
+        Upgrade.puts_no_installed_dependents_check_disable_message_if_not_already!
         puts reinstallable_broken_dependents.map(&:full_specified_name)
                                             .join(", ")
       end
@@ -370,6 +404,7 @@ module Homebrew
           build_from_source_formulae: build_from_source_formulae + [formula.full_name],
           interactive:                interactive,
           keep_tmp:                   keep_tmp,
+          debug_symbols:              debug_symbols,
           force:                      force,
           debug:                      debug,
           quiet:                      quiet,

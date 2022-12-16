@@ -2,6 +2,12 @@ inherit_from:
   - ../.rubocop_rspec.yml
   - .rubocop_todo.yml
 
+Homebrew/MoveToExtendOS:
+  Enabled: true
+  Exclude:
+    - "{extend,test,requirements}/**/*"
+    - "os.rb"
+
 # make rspec formatting more flexible
 Layout/MultilineMethodCallIndentation:
   Exclude:
@@ -16,11 +22,12 @@ Lint/NestedMethodDefinition:
 Metrics/AbcSize:
   Max: 280
 Metrics/BlockLength:
-  Max: 102
+  Max: 106
   Exclude:
     # TODO: extract more of the bottling logic
     - "dev-cmd/bottle.rb"
     - "test/**/*"
+    - "cmd/install.rb"
 Metrics/BlockNesting:
   Max: 5
 Metrics/ClassLength:
@@ -39,6 +46,8 @@ Metrics/ModuleLength:
   Exclude:
     # TODO: extract more of the bottling logic
     - "dev-cmd/bottle.rb"
+    # TODO: try break this down
+    - "utils/github.rb"
     - "test/**/*"
 
 Naming/PredicateName:
